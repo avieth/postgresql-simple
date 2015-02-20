@@ -22,6 +22,7 @@ module Database.PostgreSQL.Simple.ToRow
 
 import Database.PostgreSQL.Simple.ToField (Action(..), ToField(..))
 import Database.PostgreSQL.Simple.Types (Only(..), (:.)(..))
+import Data.TypeNat.Vect
 
 -- | A collection type that can be turned into a list of rendering
 -- 'Action's.
@@ -90,3 +91,6 @@ instance (ToField a) => ToRow [a] where
 
 instance (ToRow a, ToRow b) => ToRow (a :. b) where
     toRow (a :. b) = toRow a ++ toRow b
+
+instance (ToField a) => ToRow (Vect a n) where
+    toRow = toRow . vectToList

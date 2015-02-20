@@ -27,7 +27,7 @@ module Database.PostgreSQL.Simple.FromRow
      ) where
 
 import           Prelude hiding (null)
-import           Control.Applicative (Applicative(..), (<$>), (<|>), (*>))
+import           Control.Applicative (Applicative(..), (<$>), (<|>), (*>), empty)
 import           Control.Monad (replicateM, replicateM_)
 import           Control.Monad.Trans.State.Strict
 import           Control.Monad.Trans.Reader
@@ -36,6 +36,7 @@ import           Data.ByteString (ByteString)
 import qualified Data.ByteString.Char8 as B
 import           Data.Vector (Vector)
 import qualified Data.Vector as V
+import           Data.TypeNat.Vect
 import           Database.PostgreSQL.Simple.Types (Only(..))
 import qualified Database.PostgreSQL.LibPQ as PQ
 import           Database.PostgreSQL.Simple.Internal
@@ -252,3 +253,27 @@ instance FromField a => FromRow (Maybe (Vector a)) where
 
 instance (FromRow a, FromRow b) => FromRow (a :. b) where
     fromRow = (:.) <$> fromRow <*> fromRow
+
+
+newtype ParseVect a n = ParseVect {
+    unParseVect :: RowParser (Vect a n)
+  }
+
+-- | You can try to read a Vect of a given length from a row.
+--   If you ask for too many columns, you get no parse; if you ask for too
+--   few columns, you get no parse.
+instance (IsNat k, FromField a) => FromRow (Vect a k) where
+  fromRow = do
+      n <- numFieldsRemaining
+      unParseVect $ natRecursion inductive base decr n
+
+    where
+
+      decr n = n - 1
+
+      base m = case m of
+        0 -> ParseVect $ pure VNil
+        n -> ParseVect empty
+
+      inductive n (ParseVect parser) = ParseVect (VCons <$> field <*> parser)
+
